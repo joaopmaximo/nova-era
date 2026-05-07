@@ -16,24 +16,17 @@ Base.metadata.create_all(bind=engine)
 
 
 @app.get("/", response_class=HTMLResponse)
-async def root():
-    return HTMLResponse(content="""
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-            <meta charset="UTF-8">
-            <meta http-equiv="refresh" content="0;url=/clients" />
-        </head>
-        <body>
-            <p>Redirecting...</p>
-        </body>
-        </html>
-    """)
+async def root(request: Request, db: Session = Depends(get_db)):
+    clients = db.scalars(select(Client)).all()
+    return templates.TemplateResponse("clients.html", {"request": request, "clients": clients})
 
 
 @app.get("/register", response_class=HTMLResponse)
-async def register_page(request: Request, db: Session = Depends(get_db)):
-    return templates.TemplateResponse("register.html", {"request": request})
+async def register_page(request: Request):
+    # Redirect to root but with a hint to open the register tab
+    return HTMLResponse(content="""
+        <script>window.location.href = '/?tab=register';</script>
+    """)
 
 
 @app.post("/register")
@@ -49,21 +42,13 @@ async def register(
     existing = db.scalars(select(Client).where(Client.email == email)).first()
     
     if existing:
-        return templates.TemplateResponse("register.html", {
-            "request": request,
-            "message": "Email já cadastrado!",
-            "success": False
-        })
+        return {"success": False, "message": "Email já cadastrado!"}
     
     client = Client(name=name, email=email, phone=phone, document=document, address=address)
     db.add(client)
     db.commit()
     
-    return templates.TemplateResponse("register.html", {
-        "request": request,
-        "message": "Cliente cadastrado com sucesso!",
-        "success": True
-    })
+    return {"success": True, "message": "Cliente cadastrado com sucesso!"}
 
 
 @app.get("/clients", response_class=HTMLResponse)
