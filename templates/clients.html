@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h2 class="card-title">Clientes Cadastrados</h2>
+        <a href="/register" class="btn btn-primary">+ Novo Cliente</a>
+    </div>
+    
+    {% if message %}
+    <div class="alert {% if success %}alert-success{% else %}alert-error{% endif %}">
+        {{ message }}
+    </div>
+    {% endif %}
+    
+    <div class="search-bar">
+        <input type="text" id="searchInput" class="search-input" placeholder="Buscar por nome, email ou documento...">
+    </div>
+    
+    <div class="table-container">
+        <table class="table" id="clientsTable">
+            <thead>
+                <tr>
+                    <th>Nome</th>
+                    <th>Email</th>
+                    <th>Telefone</th>
+                    <th>Documento</th>
+                    <th>Endereço</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for client in clients %}
+                <tr>
+                    <td><strong>{{ client.name }}</strong></td>
+                    <td>{{ client.email }}</td>
+                    <td>{{ client.phone or '-' }}</td>
+                    <td>{{ client.document or '-' }}</td>
+                    <td>{{ client.address or '-' }}</td>
+                </tr>
+                {% else %}
+                <tr>
+                    <td colspan="5">
+                        <div class="empty-state">
+                            <div class="empty-state-icon">📋</div>
+                            <div class="empty-state-title">Nenhum cliente cadastrado</div>
+                            <p>Clique em "+ Novo Cliente" para começar</p>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+document.getElementById('searchInput').addEventListener('keyup', function() {
+    const searchTerm = this.value.toLowerCase();
+    const rows = document.querySelectorAll('#clientsTable tbody tr');
+    
+    rows.forEach(row => {
+        const text = row.textContent.toLowerCase();
+        row.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
+});
+</script>
+{% endblock %}
