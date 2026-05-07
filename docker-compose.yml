@@ -11,5 +11,16 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  web:
+    build: .
+    container_name: clients_web
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+    environment:
+      - DATABASE_URL=postgresql://user:password@db:5432/clients_db
+    restart: always
+
 volumes:
   postgres_data:
