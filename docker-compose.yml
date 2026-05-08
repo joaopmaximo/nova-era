@@ -3,9 +3,9 @@ services:
     image: postgres:16-alpine
     container_name: clients_db
     environment:
-      POSTGRES_USER: user
-      POSTGRES_PASSWORD: password
-      POSTGRES_DB: clients_db
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
     ports:
       - "5432:5432"
     volumes:
@@ -19,8 +19,9 @@ services:
     depends_on:
       - db
     environment:
-      - ENVIRONMENT=development
-      - DATABASE_URL=postgresql://user:password@db:5432/clients_db
+      - ENVIRONMENT=${ENVIRONMENT}
+      - DATABASE_URL=postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
+      - SECRET_KEY=${SECRET_KEY}
     restart: always
     command: sh -c "python seed_dev.py && uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
