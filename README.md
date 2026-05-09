@@ -1,45 +1,54 @@
-# Client Registration System
+# Sistema de Gestão de Alunos - Nova Era
 
-Simple client registration system built with Python, FastAPI, and PostgreSQL.
+Sistema para gerenciamento de alunos e matrículas em cursos, desenvolvido com Python, FastAPI e PostgreSQL.
 
-## Stack
+## Funcionalidades Atuais
 
-- **Backend**: FastAPI + SQLAlchemy
-- **Database**: PostgreSQL (via Docker)
-- **Frontend**: HTML + CSS (responsive, modern design)
+- **Gestão de Alunos:** Cadastro, edição, exclusão e listagem de alunos.
+- **Matrículas em Cursos:** Suporte a múltiplos cursos por aluno (Inglês Iniciante, Inglês Avançado, Espanhol, Informática).
+- **Interface por Abas:** Organização por curso e visão geral de todos os alunos.
+- **Importação/Exportação:** Suporte a arquivos CSV para migração de dados.
+- **Filtros e Busca:** Pesquisa inteligente dentro de cada aba selecionada.
 
-## Project Structure
+## Stack Tecnológica
+
+- **Backend**: FastAPI + SQLAlchemy + Passlib (Bcrypt)
+- **Banco de Dados**: PostgreSQL (via Docker)
+- **Frontend**: Jinja2 + Vanilla JS + Tailwind CSS (Responsivo)
+
+## Estrutura do Projeto
 
 ```
 ├── app/
-│   ├── database.py    # DB connection
-│   ├── models.py      # SQLAlchemy models
-│   └── main.py        # API routes
-├── static/css/
-│   └── style.css      # Styles
+│   ├── auth.py        # Autenticação JWT
+│   ├── database.py    # Conexão com banco
+│   ├── models.py      # Modelos SQLAlchemy (Student, Course, User)
+│   └── main.py        # Rotas e Lógica principal
 ├── templates/
-│   ├── base.html      # Layout
-│   ├── register.html  # Registration page
-│   └── clients.html   # Client list page
-├── docker-compose.yml
-├── requirements.txt
-└── .env
+│   ├── base.html      # Layout principal
+│   ├── login.html     # Página de acesso
+│   └── students.html  # Interface de gestão de alunos
+├── ONLINE_FEATURE.md  # Documentação da funcionalidade oculta
+├── IMPLEMENTATION.md  # Detalhes técnicos da implementação
+└── docker-compose.yml
 ```
 
-## Setup
+## Instalação e Execução
 
 ```bash
-# Start database
+# 1. Iniciar banco de dados
 docker compose up -d
 
-# Install dependencies
+# 2. Instalar dependências (use um ambiente virtual)
 pip install -r requirements.txt
 
-# Run server
+# 3. Rodar migrações/seed (opcional para dev)
+py seed_dev.py
+
+# 4. Iniciar o servidor
 py -m uvicorn app.main:app --reload
 ```
 
-## Routes
+## Documentação Extra
 
-- `/register` - New client registration
-- `/clients` - List all clients (with search)
+- Para detalhes sobre a funcionalidade de "Alunos Online" e como reativá-la, consulte [ONLINE_FEATURE.md](./ONLINE_FEATURE.md).
