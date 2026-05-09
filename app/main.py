@@ -1,5 +1,6 @@
 import csv
 import io
+import os
 from datetime import timedelta
 from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
@@ -9,26 +10,38 @@ from sqlalchemy import select, func, or_
 from fastapi.templating import Jinja2Templates
 
 from app.database import engine, get_db, Base
-from app.models import Client, User
+from app.models import Student, User, Course
 from app.auth import authenticate_user, create_access_token, login_required, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
 templates = Jinja2Templates(directory="templates")
 
-# Initialize database and default user
+# Initialize database and default data
 Base.metadata.create_all(bind=engine)
 
-def create_admin():
+def init_db():
     db = next(get_db())
-    admin = db.scalars(select(User).where(User.username == "admin")).first()
+    
+    # Initialize Admin
+    admin_username = os.getenv("ADMIN_USERNAME", "admin")
+    admin_password = os.getenv("ADMIN_PASSWORD", "admin")
+    admin = db.scalars(select(User).where(User.username == admin_username)).first()
     if not admin:
-        hashed_pw = get_password_hash("admin")
-        admin = User(username="admin", hashed_password=hashed_pw)
+        hashed_pw = get_password_hash(admin_password)
+        admin = User(username=admin_username, hashed_password=hashed_pw)
         db.add(admin)
-        db.commit()
+    
+    # Initialize Courses
+    course_names = ["Inglês Iniciante", "Inglês Avançado", "Espanhol", "Informática"]
+    for name in course_names:
+        course = db.scalars(select(Course).where(Course.name == name)).first()
+        if not course:
+            db.add(Course(name=name))
+    
+    db.commit()
 
-create_admin()
+init_db()
 
 @app.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request, user: User = Depends(get_current_user)):
@@ -72,61 +85,82 @@ async def root(
     page: int = 1, 
     size: int = 10,
     search: str = None,
+    online: bool = False,
+    course_id: int = None,
     user: User = Depends(login_required)
 ):
-    query = select(Client)
+    query = select(Student)
+    
+    # Filter by course
+    if course_id:
+        query = query.join(Student.courses).where(Course.id == course_id)
+        
     if search:
         search_filter = f"%{search}%"
         query = query.where(
             or_(
-                Client.name.ilike(search_filter),
-                Client.email.ilike(search_filter),
-                Client.document.ilike(search_filter)
+                Student.name.ilike(search_filter),
+                Student.email.ilike(search_filter),
+                Student.document.ilike(search_filter)
             )
         )
     
-    total_clients = db.scalar(select(func.count()).select_from(query.subquery()))
-    total_pages = (total_clients + size - 1) // size if total_clients > 0 else 1
+    if online:
+        query = query.where(Student.is_online == True)
+    
+    total_students = db.scalar(select(func.count()).select_from(query.distinct().subquery()))
+    total_pages = (total_students + size - 1) // size if total_students > 0 else 1
     
     page = max(1, min(page, total_pages))
     
-    clients = db.scalars(
-        query.order_by(Client.id.desc())
+    students = db.scalars(
+        query.order_by(Student.id.desc())
         .offset((page - 1) * size)
         .limit(size)
-    ).all()
+    ).unique().all()
     
-    return templates.TemplateResponse("clients.html", {
+    # Get all courses for the tabs and forms
+    all_courses = db.scalars(select(Course).order_by(Course.id)).all()
+    
+    return templates.TemplateResponse("students.html", {
         "request": request, 
-        "clients": clients,
+        "students": students,
+        "courses": all_courses,
         "page": page,
         "total_pages": total_pages,
-        "total_clients": total_clients,
+        "total_students": total_students,
         "size": size,
         "search": search or "",
+        "online": online,
+        "course_id": course_id,
         "user": user
     })
+
+from typing import List
 
 @app.get("/export/csv")
 async def export_csv(
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    clients = db.scalars(select(Client)).all()
+    students = db.scalars(select(Student)).all()
     
     output = io.StringIO()
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
     
-    writer.writerow(["Nome", "Email", "Telefone", "Documento", "Endereço"])
+    writer.writerow(["Nome", "Email", "Telefone", "Documento", "Endereço", "Online", "Cursos"])
     
-    for client in clients:
+    for student in students:
+        courses_str = ", ".join([c.name for c in student.courses])
         writer.writerow([
-            client.name,
-            client.email,
-            client.phone or "",
-            client.document or "",
-            client.address or ""
+            student.name,
+            student.email,
+            student.phone or "",
+            student.document or "",
+            student.address or "",
+            "Sim" if student.is_online else "Não",
+            courses_str
         ])
     
     output.seek(0)
@@ -134,7 +168,7 @@ async def export_csv(
     return StreamingResponse(
         io.BytesIO(output.getvalue().encode('utf-8')),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=clientes.csv"}
+        headers={"Content-Disposition": "attachment; filename=alunos.csv"}
     )
 
 
@@ -165,7 +199,7 @@ async def import_csv(
     skipped = 0
     
     for row in reader:
-        # Normalize keys (some CSVs might have spaces or different capitalization)
+        # Normalize keys
         row = {k.strip().lower(): v for k, v in row.items() if k}
         
         name = row.get('nome') or row.get('name')
@@ -173,25 +207,40 @@ async def import_csv(
         phone = row.get('telefone') or row.get('phone')
         document = row.get('documento') or row.get('document')
         address = row.get('endereço') or row.get('address') or row.get('endereco')
+        is_online_val = row.get('online') or row.get('is_online')
+        
+        is_online = False
+        if is_online_val:
+            is_online = str(is_online_val).lower() in ('sim', 'yes', 'true', '1')
         
         if not name or not email:
             skipped += 1
             continue
             
-        existing = db.scalars(select(Client).where(Client.email == email)).first()
+        existing = db.scalars(select(Student).where(Student.email == email)).first()
         if existing:
             skipped += 1
             continue
             
-        client = Client(name=name, email=email, phone=phone, document=document, address=address)
-        db.add(client)
+        student = Student(name=name, email=email, phone=phone, document=document, address=address, is_online=is_online)
+        
+        # Handle courses from CSV if present
+        courses_str = row.get('cursos') or row.get('courses')
+        if courses_str:
+            course_names = [c.strip() for c in courses_str.split(',')]
+            for c_name in course_names:
+                course = db.scalars(select(Course).where(Course.name.ilike(c_name))).first()
+                if course:
+                    student.courses.append(course)
+                    
+        db.add(student)
         added += 1
     
     db.commit()
     
     return {
         "success": True, 
-        "message": f"Importação concluída: {added} adicionados, {skipped} ignorados (duplicados ou inválidos)."
+        "message": f"Importação concluída: {added} adicionados, {skipped} ignorados."
     }
 
 @app.post("/register")
@@ -202,79 +251,101 @@ async def register(
     phone: str = Form(None),
     document: str = Form(None),
     address: str = Form(None),
+    is_online: bool = Form(False),
+    course_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    existing = db.scalars(select(Client).where(Client.email == email)).first()
+    existing = db.scalars(select(Student).where(Student.email == email)).first()
     
     if existing:
         return {"success": False, "message": "Email já cadastrado!"}
     
-    client = Client(name=name, email=email, phone=phone, document=document, address=address)
-    db.add(client)
+    student = Student(name=name, email=email, phone=phone, document=document, address=address, is_online=is_online)
+    
+    if course_ids:
+        for c_id in course_ids:
+            course = db.get(Course, c_id)
+            if course:
+                student.courses.append(course)
+                
+    db.add(student)
     db.commit()
     
-    return {"success": True, "message": "Cliente cadastrado com sucesso!"}
+    return {"success": True, "message": "Aluno cadastrado com sucesso!"}
 
-@app.get("/clients/{client_id}")
-async def get_client(
-    client_id: int, 
+@app.get("/students/{student_id}")
+async def get_student(
+    student_id: int, 
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    client = db.get(Client, client_id)
-    if not client:
-        return {"success": False, "message": "Cliente não encontrado"}
+    student = db.get(Student, student_id)
+    if not student:
+        return {"success": False, "message": "Aluno não encontrado"}
     return {
         "success": True, 
-        "client": {
-            "id": client.id,
-            "name": client.name,
-            "email": client.email,
-            "phone": client.phone,
-            "document": client.document,
-            "address": client.address
+        "student": {
+            "id": student.id,
+            "name": student.name,
+            "email": student.email,
+            "phone": student.phone,
+            "document": student.document,
+            "address": student.address,
+            "is_online": student.is_online,
+            "course_ids": [c.id for c in student.courses]
         }
     }
 
-@app.post("/clients/{client_id}/update")
-async def update_client(
-    client_id: int,
+@app.post("/students/{student_id}/update")
+async def update_student(
+    student_id: int,
     name: str = Form(...),
     email: str = Form(...),
     phone: str = Form(None),
     document: str = Form(None),
     address: str = Form(None),
+    is_online: bool = Form(False),
+    course_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    client = db.get(Client, client_id)
-    if not client:
-        return {"success": False, "message": "Cliente não encontrado"}
+    student = db.get(Student, student_id)
+    if not student:
+        return {"success": False, "message": "Aluno não encontrado"}
     
-    existing = db.scalars(select(Client).where(Client.email == email, Client.id != client_id)).first()
+    existing = db.scalars(select(Student).where(Student.email == email, Student.id != student_id)).first()
     if existing:
-        return {"success": False, "message": "Este email já está sendo usado por outro cliente!"}
+        return {"success": False, "message": "Este email já está sendo usado por outro aluno!"}
     
-    client.name = name
-    client.email = email
-    client.phone = phone
-    client.document = document
-    client.address = address
+    student.name = name
+    student.email = email
+    student.phone = phone
+    student.document = document
+    student.address = address
+    student.is_online = is_online
+    
+    # Update courses
+    student.courses = []
+    if course_ids:
+        for c_id in course_ids:
+            course = db.get(Course, c_id)
+            if course:
+                student.courses.append(course)
     
     db.commit()
-    return {"success": True, "message": "Cliente atualizado com sucesso!"}
+    return {"success": True, "message": "Aluno atualizado com sucesso!"}
 
-@app.post("/clients/{client_id}/delete")
-async def delete_client(
-    client_id: int, 
+@app.post("/students/{student_id}/delete")
+async def delete_student(
+    student_id: int, 
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    client = db.get(Client, client_id)
-    if not client:
-        return {"success": False, "message": "Cliente não encontrado"}
+    student = db.get(Student, student_id)
+    if not student:
+        return {"success": False, "message": "Aluno não encontrado"}
     
-    db.delete(client)
+    db.delete(student)
     db.commit()
-    return {"success": True, "message": "Cliente removido com sucesso!"}
+    return {"success": True, "message": "Aluno removido com sucesso!"}
