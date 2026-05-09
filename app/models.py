@@ -15,10 +15,12 @@ class Student(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    phone = Column(String(20))
-    document = Column(String(20))
-    address = Column(String(200))
+    email = Column(String(100), nullable=True)
+    phone = Column(String(20), nullable=True)
+    document = Column(String(20), nullable=True)
+    address = Column(String(200), nullable=True)
+    emergency_phone = Column(String(20), nullable=True)
+    observations = Column(String(500), nullable=True)
     is_online = Column(Boolean, default=False)
     
     # Relationship to courses

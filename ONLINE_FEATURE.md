@@ -4,17 +4,17 @@ Esta funcionalidade permitia marcar alunos como "Online" ou "Offline" e filtrar 
 
 ## Estrutura Técnica
 - **Banco de Dados:** Coluna `is_online` (Boolean) na tabela `students`.
-- **Backend:** O endpoint `GET /` ainda aceita o parâmetro `online=true`, e os endpoints de cadastro/atualização ainda processam o campo `is_online`.
-- **CSV:** A importação e exportação ainda incluem a coluna "Online".
+- **Backend:** O endpoint `GET /` ainda aceita o parâmetro `online=true` (embora não haja link na UI), e os endpoints de cadastro/atualização manuais via modal ainda podem processar o campo caso sejam reativados.
+- **CSV:** A importação e exportação **não** incluem mais a coluna "Online" para manter o padrão da interface simplificada.
 
-## Como Reativar na Interface
+## Como Reativar Completamente
 
-Para tornar a funcionalidade visível novamente, siga estes passos no arquivo `templates/students.html`:
+Para tornar a funcionalidade visível e funcional novamente:
 
-1.  **Filtro de Listagem:** Re-adicionar o componente de toggle (Todos/Online) ao lado da barra de pesquisa.
-2.  **Badge na Tabela:** Descomentar ou re-adicionar o `<span>` que exibe o status verde (Online) ou cinza (Offline) na primeira coluna da tabela.
-3.  **Formulários:** Alterar os campos `<input type="hidden" name="is_online">` para `<input type="checkbox">` tanto no `registerForm` quanto no `editForm`.
-4.  **JavaScript:** No `editModal`, garantir que o valor do checkbox seja definido corretamente (`cb.checked = student.is_online`).
+1.  **Filtro de Listagem:** Re-adicionar o componente de toggle (Todos/Online) ao lado da barra de pesquisa no `students.html`.
+2.  **Badge na Tabela:** Re-adicionar a coluna de Status na tabela do `students.html`.
+3.  **Formulários:** Alterar os campos ocultos para checkboxes nos formulários de cadastro e edição.
+4.  **CSV:** Re-adicionar a lógica de leitura/escrita do campo `is_online` nas funções `export_csv` e `import_csv` no `app/main.py`.
 
 ## Histórico
 - **Implementada em:** 08/05/2026

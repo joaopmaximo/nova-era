@@ -77,7 +77,7 @@
                             <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Nome</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Cursos</th>
                             <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Contato</th>
-                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Documento</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">CPF</th>
                             <th scope="col" class="px-6 py-3 text-right text-xs font-semibold text-slate-500 uppercase tracking-wider">Ações</th>
                         </tr>
                     </thead>
@@ -162,7 +162,7 @@
 
     <!-- Tab: Register -->
     <div id="section-register" class="tab-section hidden">
-        <div class="bg-white shadow rounded-lg max-w-3xl mx-auto overflow-hidden">
+        <div class="bg-white shadow rounded-lg max-w-4xl mx-auto overflow-hidden">
             <div class="px-6 py-4 border-b border-slate-100 bg-slate-50/50">
                 <h2 class="text-lg font-semibold text-slate-800">Novo Cadastro de Aluno</h2>
                 <p class="text-sm text-slate-500 mt-1">Preencha as informações abaixo para registrar um novo aluno.</p>
@@ -175,16 +175,24 @@
                         <input type="text" name="name" required class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div class="col-span-1">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">E-mail *</label>
-                        <input type="email" name="email" required class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">E-mail</label>
+                        <input type="email" name="email" placeholder="exemplo@email.com" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div class="col-span-1">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Telefone</label>
-                        <input type="text" name="phone" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Telefone Principal</label>
+                        <input type="text" name="phone" placeholder="(00) 00000-0000" class="mask-phone block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
                     </div>
                     <div class="col-span-1">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Documento</label>
-                        <input type="text" name="document" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Telefone de Emergência</label>
+                        <input type="text" name="emergency_phone" placeholder="(00) 00000-0000" class="mask-phone block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">CPF</label>
+                        <input type="text" name="document" placeholder="000.000.000-00" class="mask-cpf block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Endereço</label>
+                        <input type="text" name="address" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
                     </div>
                     
                     <div class="col-span-full">
@@ -199,13 +207,12 @@
                         </div>
                     </div>
 
-                    <!-- Online status kept in backend, hidden in frontend for now -->
-                    <input type="hidden" name="is_online" value="false">
-
                     <div class="col-span-full">
-                        <label class="block text-sm font-medium text-slate-700 mb-1">Endereço</label>
-                        <input type="text" name="address" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Observações</label>
+                        <textarea name="observations" rows="3" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm"></textarea>
                     </div>
+
+                    <input type="hidden" name="is_online" value="false">
                 </div>
                 
                 <div class="flex justify-end pt-4 border-t">
@@ -223,46 +230,57 @@
     <div class="flex items-end justify-center min-h-screen pt-4 px-4 pb-20 text-center sm:block sm:p-0">
         <div class="fixed inset-0 bg-slate-500 bg-opacity-75 transition-opacity" onclick="closeEditModal()"></div>
         <span class="hidden sm:inline-block sm:align-middle sm:h-screen" aria-hidden="true">&#8203;</span>
-        <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-lg sm:w-full sm:p-6">
+        <div class="inline-block align-bottom bg-white rounded-lg px-4 pt-5 pb-4 text-left overflow-hidden shadow-xl transform transition-all sm:my-8 sm:align-middle sm:max-w-2xl sm:w-full sm:p-6">
             <h3 class="text-lg font-semibold text-slate-900 mb-4">Editar Aluno</h3>
             <form id="editForm" class="space-y-4">
                 <input type="hidden" id="edit-id" name="id">
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">Nome Completo *</label>
-                    <input type="text" id="edit-name" name="name" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700">E-mail *</label>
-                    <input type="email" id="edit-email" name="email" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
-                </div>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">Telefone</label>
-                        <input type="text" id="edit-phone" name="phone" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">Nome Completo *</label>
+                        <input type="text" id="edit-name" name="name" required class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
                     </div>
-                    <div>
-                        <label class="block text-sm font-medium text-slate-700">Documento</label>
-                        <input type="text" id="edit-document" name="document" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">E-mail</label>
+                        <input type="email" id="edit-email" name="email" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
                     </div>
-                </div>
-                <div>
-                    <label class="block text-sm font-medium text-slate-700 mb-2">Cursos</label>
-                    <div class="grid grid-cols-2 gap-2">
-                        {% for course in courses %}
-                        <label class="flex items-center p-2 rounded border border-slate-100 cursor-pointer hover:bg-slate-50">
-                            <input type="checkbox" name="course_ids" value="{{ course.id }}" class="edit-course-checkbox h-4 w-4 text-indigo-600 rounded">
-                            <span class="ml-2 text-xs font-medium text-slate-700">{{ course.name }}</span>
-                        </label>
-                        {% endfor %}
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">Telefone Principal</label>
+                        <input type="text" id="edit-phone" name="phone" class="mask-phone mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">Telefone de Emergência</label>
+                        <input type="text" id="edit-emergency_phone" name="emergency_phone" class="mask-phone mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">CPF</label>
+                        <input type="text" id="edit-document" name="document" class="mask-cpf mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                    </div>
+                    <div class="col-span-1">
+                        <label class="block text-sm font-medium text-slate-700">Endereço</label>
+                        <input type="text" id="edit-address" name="address" class="mt-1 block w-full px-3 py-2 border border-slate-300 rounded-md sm:text-sm">
+                    </div>
+                    <div class="col-span-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-2">Cursos</label>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                            {% for course in courses %}
+                            <label class="flex items-center p-2 rounded border border-slate-100 cursor-pointer hover:bg-slate-50">
+                                <input type="checkbox" name="course_ids" value="{{ course.id }}" class="edit-course-checkbox h-4 w-4 text-indigo-600 rounded">
+                                <span class="ml-2 text-xs font-medium text-slate-700">{{ course.name }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="col-span-full">
+                        <label class="block text-sm font-medium text-slate-700 mb-1">Observações</label>
+                        <textarea id="edit-observations" name="observations" rows="2" class="block w-full px-3 py-2 border border-slate-300 rounded-md shadow-sm focus:ring-indigo-500 sm:text-sm"></textarea>
                     </div>
                 </div>
                 
-                <!-- Online status kept in backend, hidden in frontend for now -->
                 <input type="hidden" id="edit-is_online" name="is_online">
 
                 <div class="mt-6 flex justify-end gap-3">
                     <button type="button" onclick="closeEditModal()" class="px-4 py-2 border rounded-md text-slate-700 bg-white hover:bg-slate-50 text-sm">Cancelar</button>
-                    <button type="button" onclick="submitUpdate()" class="px-4 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 text-sm">Salvar</button>
+                    <button type="button" onclick="submitUpdate()" class="px-4 py-2 rounded-md text-white bg-indigo-600 hover:bg-indigo-700 text-sm">Salvar Alterações</button>
                 </div>
             </form>
         </div>
@@ -270,6 +288,65 @@
 </div>
 
 <script>
+    // --- Masking Logic ---
+    function maskCPF(value) {
+        return value.replace(/\D/g, '')
+                    .replace(/(\d{3})(\d)/, '$1.$2')
+                    .replace(/(\d{3})(\d)/, '$1.$2')
+                    .replace(/(\d{3})(\d{1,2})/, '$1-$2')
+                    .replace(/(-\d{2})\d+?$/, '$1');
+    }
+
+    function maskPhone(value) {
+        return value.replace(/\D/g, '')
+                    .replace(/(\d{2})(\d)/, '($1) $2')
+                    .replace(/(\d{5})(\d)/, '$1-$2')
+                    .replace(/(-\d{4})\d+?$/, '$1');
+    }
+
+    function applyMasks() {
+        document.querySelectorAll('.mask-cpf').forEach(el => {
+            el.addEventListener('input', e => { e.target.value = maskCPF(e.target.value); });
+        });
+        document.querySelectorAll('.mask-phone').forEach(el => {
+            el.addEventListener('input', e => { e.target.value = maskPhone(e.target.value); });
+        });
+    }
+
+    // --- Validation Logic ---
+    function validateEmail(email) {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    function validateCPF(cpf) {
+        cpf = cpf.replace(/\D/g, '');
+        if (cpf.length !== 11 || !!cpf.match(/(\d)\1{10}/)) return false;
+        let sum = 0, rest;
+        for (let i = 1; i <= 9; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (11 - i);
+        rest = (sum * 10) % 11;
+        if ((rest == 10) || (rest == 11)) rest = 0;
+        if (rest != parseInt(cpf.substring(9, 10))) return false;
+        sum = 0;
+        for (let i = 1; i <= 10; i++) sum = sum + parseInt(cpf.substring(i - 1, i)) * (12 - i);
+        rest = (sum * 10) % 11;
+        if ((rest == 10) || (rest == 11)) rest = 0;
+        if (rest != parseInt(cpf.substring(10, 11))) return false;
+        return true;
+    }
+
+    function validateForm(formData) {
+        const email = formData.get('email');
+        const cpf = formData.get('document');
+        const phone = formData.get('phone');
+
+        if (email && email.trim() !== '' && !validateEmail(email)) { showAlert('E-mail inválido.', 'error'); return false; }
+        if (cpf && cpf.trim() !== '' && !validateCPF(cpf)) { showAlert('CPF inválido.', 'error'); return false; }
+        if (phone && phone.trim() !== '' && phone.replace(/\D/g, '').length < 10) { showAlert('Telefone inválido.', 'error'); return false; }
+        
+        return true;
+    }
+
+    // --- Tab and UI Logic ---
     function switchTab(tabId) {
         document.querySelectorAll('.tab-section').forEach(el => el.classList.add('hidden'));
         const target = document.getElementById('section-' + tabId);
@@ -290,6 +367,7 @@
     window.addEventListener('DOMContentLoaded', () => {
         const params = new URLSearchParams(window.location.search);
         if (params.get('tab') === 'register') switchTab('register');
+        applyMasks();
     });
 
     function showAlert(message, type) {
@@ -308,6 +386,8 @@
         registerForm.addEventListener('submit', async function(e) {
             e.preventDefault();
             const formData = new FormData(this);
+            if (!validateForm(formData)) return;
+
             try {
                 const res = await fetch('/register', { method: 'POST', body: formData });
                 const result = await res.json();
@@ -326,9 +406,13 @@
                 document.getElementById('edit-id').value = s.id;
                 document.getElementById('edit-name').value = s.name;
                 document.getElementById('edit-email').value = s.email;
-                document.getElementById('edit-phone').value = s.phone || '';
-                document.getElementById('edit-document').value = s.document || '';
+                document.getElementById('edit-phone').value = maskPhone(s.phone || '');
+                document.getElementById('edit-emergency_phone').value = maskPhone(s.emergency_phone || '');
+                document.getElementById('edit-document').value = maskCPF(s.document || '');
+                document.getElementById('edit-address').value = s.address || '';
+                document.getElementById('edit-observations').value = s.observations || '';
                 document.getElementById('edit-is_online').value = s.is_online;
+                
                 document.querySelectorAll('.edit-course-checkbox').forEach(cb => {
                     cb.checked = s.course_ids.includes(parseInt(cb.value));
                 });
@@ -343,6 +427,8 @@
         const form = document.getElementById('editForm');
         const id = document.getElementById('edit-id').value;
         const formData = new FormData(form);
+        if (!validateForm(formData)) return;
+
         try {
             const res = await fetch(`/students/${id}/update`, { method: 'POST', body: formData });
             const result = await res.json();

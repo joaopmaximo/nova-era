@@ -149,7 +149,7 @@ async def export_csv(
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
     
-    writer.writerow(["Nome", "Email", "Telefone", "Documento", "Endereço", "Online", "Cursos"])
+    writer.writerow(["Nome", "Email", "Telefone", "Tel. Emergência", "CPF", "Endereço", "Cursos", "Observações"])
     
     for student in students:
         courses_str = ", ".join([c.name for c in student.courses])
@@ -157,10 +157,11 @@ async def export_csv(
             student.name,
             student.email,
             student.phone or "",
+            student.emergency_phone or "",
             student.document or "",
             student.address or "",
-            "Sim" if student.is_online else "Não",
-            courses_str
+            courses_str,
+            student.observations or ""
         ])
     
     output.seek(0)
@@ -183,15 +184,12 @@ async def import_csv(
     
     try:
         content = await file.read()
-        # Decode content, handling BOM if present
         text_content = content.decode('utf-8-sig')
         stream = io.StringIO(text_content)
         
-        # Try semicolon first, then comma
         dialect = csv.Sniffer().sniff(text_content[:1024])
         reader = csv.DictReader(stream, dialect=dialect)
     except Exception:
-        # Fallback to semicolon if sniffer fails
         stream.seek(0)
         reader = csv.DictReader(stream, delimiter=';')
 
@@ -199,19 +197,15 @@ async def import_csv(
     skipped = 0
     
     for row in reader:
-        # Normalize keys
         row = {k.strip().lower(): v for k, v in row.items() if k}
         
         name = row.get('nome') or row.get('name')
         email = row.get('email')
         phone = row.get('telefone') or row.get('phone')
-        document = row.get('documento') or row.get('document')
+        emergency_phone = row.get('tel. emergência') or row.get('emergency_phone')
+        document = row.get('cpf') or row.get('documento') or row.get('document')
         address = row.get('endereço') or row.get('address') or row.get('endereco')
-        is_online_val = row.get('online') or row.get('is_online')
-        
-        is_online = False
-        if is_online_val:
-            is_online = str(is_online_val).lower() in ('sim', 'yes', 'true', '1')
+        observations = row.get('observações') or row.get('observations')
         
         if not name or not email:
             skipped += 1
@@ -222,9 +216,17 @@ async def import_csv(
             skipped += 1
             continue
             
-        student = Student(name=name, email=email, phone=phone, document=document, address=address, is_online=is_online)
+        student = Student(
+            name=name, 
+            email=email, 
+            phone=phone, 
+            emergency_phone=emergency_phone,
+            document=document, 
+            address=address, 
+            observations=observations,
+            is_online=False
+        )
         
-        # Handle courses from CSV if present
         courses_str = row.get('cursos') or row.get('courses')
         if courses_str:
             course_names = [c.strip() for c in courses_str.split(',')]
@@ -247,21 +249,33 @@ async def import_csv(
 async def register(
     request: Request,
     name: str = Form(...),
-    email: str = Form(...),
+    email: str = Form(None),
     phone: str = Form(None),
+    emergency_phone: str = Form(None),
     document: str = Form(None),
     address: str = Form(None),
+    observations: str = Form(None),
     is_online: bool = Form(False),
     course_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    existing = db.scalars(select(Student).where(Student.email == email)).first()
+    # Normalize CPF
+    clean_cpf = "".join(filter(str.isdigit, document)) if document and document.strip() else None
     
-    if existing:
-        return {"success": False, "message": "Email já cadastrado!"}
-    
-    student = Student(name=name, email=email, phone=phone, document=document, address=address, is_online=is_online)
+    # Handle empty email string
+    clean_email = email.strip() if email and email.strip() else None
+
+    student = Student(
+        name=name, 
+        email=clean_email, 
+        phone=phone, 
+        emergency_phone=emergency_phone,
+        document=clean_cpf, 
+        address=address, 
+        observations=observations,
+        is_online=is_online
+    )
     
     if course_ids:
         for c_id in course_ids:
@@ -290,8 +304,10 @@ async def get_student(
             "name": student.name,
             "email": student.email,
             "phone": student.phone,
+            "emergency_phone": student.emergency_phone,
             "document": student.document,
             "address": student.address,
+            "observations": student.observations,
             "is_online": student.is_online,
             "course_ids": [c.id for c in student.courses]
         }
@@ -301,10 +317,12 @@ async def get_student(
 async def update_student(
     student_id: int,
     name: str = Form(...),
-    email: str = Form(...),
+    email: str = Form(None),
     phone: str = Form(None),
+    emergency_phone: str = Form(None),
     document: str = Form(None),
     address: str = Form(None),
+    observations: str = Form(None),
     is_online: bool = Form(False),
     course_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
@@ -314,15 +332,19 @@ async def update_student(
     if not student:
         return {"success": False, "message": "Aluno não encontrado"}
     
-    existing = db.scalars(select(Student).where(Student.email == email, Student.id != student_id)).first()
-    if existing:
-        return {"success": False, "message": "Este email já está sendo usado por outro aluno!"}
+    # Normalize CPF
+    clean_cpf = "".join(filter(str.isdigit, document)) if document and document.strip() else None
     
+    # Handle empty email string
+    clean_email = email.strip() if email and email.strip() else None
+
     student.name = name
-    student.email = email
+    student.email = clean_email
     student.phone = phone
-    student.document = document
+    student.emergency_phone = emergency_phone
+    student.document = clean_cpf
     student.address = address
+    student.observations = observations
     student.is_online = is_online
     
     # Update courses
@@ -349,3 +371,4 @@ async def delete_student(
     db.delete(student)
     db.commit()
     return {"success": True, "message": "Aluno removido com sucesso!"}
+
