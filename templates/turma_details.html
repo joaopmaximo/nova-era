@@ -13,6 +13,12 @@
             <p class="text-slate-500">Período: {{ turma.start_date.strftime('%d/%m/%Y') }} a {{ turma.end_date.strftime('%d/%m/%Y') if turma.end_date else 'Indeterminado' }}</p>
         </div>
         <div class="flex gap-3">
+            <a href="/reports/blank_roll_call?turma_id={{ turma.id }}" target="_blank" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clip-rule="evenodd" />
+                </svg>
+                Lista em Branco
+            </a>
             <button onclick="document.getElementById('modal-rollcall').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
                 Nova Chamada
             </button>
@@ -60,26 +66,34 @@
 
         <!-- Roll Calls List -->
         <div class="space-y-4">
-            <h2 class="text-lg font-bold text-slate-900">Chamadas Semanais</h2>
+            <div class="flex justify-between items-center">
+                <h2 class="text-lg font-bold text-slate-900">Chamadas Semanais</h2>
+                <button type="submit" form="report-form" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2 py-1 rounded border border-slate-300 transition-colors">
+                    Gerar Diário Selecionado
+                </button>
+            </div>
             <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <ul class="divide-y divide-slate-200">
-                    {% for rc in turma.roll_calls|sort(attribute='week_start', reverse=True) %}
-                    <li class="p-4 hover:bg-slate-50 transition-colors">
-                        <a href="/roll_calls/{{ rc.id }}" class="flex justify-between items-center">
-                            <div>
-                                <span class="block font-medium text-slate-900">Semana de {{ rc.week_start.strftime('%d/%m/%Y') }}</span>
-                                <span class="text-xs text-slate-500">a {{ rc.week_end.strftime('%d/%m/%Y') }}</span>
-                            </div>
-                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
-                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
-                            </svg>
-                        </a>
-                    </li>
-                    {% endfor %}
-                    {% if not turma.roll_calls %}
-                    <li class="p-8 text-center text-slate-500 text-sm">Nenhuma chamada realizada.</li>
-                    {% endif %}
-                </ul>
+                <form id="report-form" action="/reports/roll_calls" method="POST" target="_blank">
+                    <ul class="divide-y divide-slate-200">
+                        {% for rc in turma.roll_calls|sort(attribute='week_start', reverse=True) %}
+                        <li class="p-4 hover:bg-slate-50 transition-colors flex items-center gap-3">
+                            <input type="checkbox" name="roll_call_ids" value="{{ rc.id }}" class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-slate-300 rounded cursor-pointer">
+                            <a href="/roll_calls/{{ rc.id }}" class="flex-1 flex justify-between items-center">
+                                <div>
+                                    <span class="block font-medium text-slate-900">Semana de {{ rc.week_start.strftime('%d/%m/%Y') }}</span>
+                                    <span class="text-xs text-slate-500">a {{ rc.week_end.strftime('%d/%m/%Y') }}</span>
+                                </div>
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </a>
+                        </li>
+                        {% endfor %}
+                        {% if not turma.roll_calls %}
+                        <li class="p-8 text-center text-slate-500 text-sm">Nenhuma chamada realizada.</li>
+                        {% endif %}
+                    </ul>
+                </form>
             </div>
         </div>
     </div>

@@ -2,7 +2,7 @@ import csv
 import io
 import os
 from datetime import timedelta, date, datetime
-from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File
+from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File, Response
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from app.database import engine, get_db, Base
 from app.models import Student, User, Course, Turma, Enrollment, RollCall, Attendance
 from app.auth import authenticate_user, create_access_token, login_required, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
+from xhtml2pdf import pisa
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -80,6 +81,15 @@ async def logout():
 
 @app.get("/", response_class=HTMLResponse)
 async def root(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    # Turmas is now the home page
+    return await list_turmas(request, db, user)
+
+@app.get("/alunos", response_class=HTMLResponse)
+async def list_alunos(
     request: Request, 
     db: Session = Depends(get_db), 
     page: int = 1, 
@@ -135,6 +145,90 @@ async def root(
         "turma_id": turma_id,
         "user": user
     })
+
+@app.get("/alunos/{student_id}/perfil", response_class=HTMLResponse)
+async def student_profile(
+    student_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    student = db.get(Student, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    
+    # Calculate attendance statistics
+    attendance_data = []
+    for enrollment in student.enrollments:
+        total = len(enrollment.attendances)
+        present = sum(1 for a in enrollment.attendances if a.presence)
+        absent = total - present
+        rate = (present / total * 100) if total > 0 else 100
+        attendance_data.append({
+            "turma": enrollment.turma,
+            "total": total,
+            "present": present,
+            "absent": absent,
+            "rate": rate
+        })
+
+    return templates.TemplateResponse("student_profile.html", {
+        "request": request,
+        "student": student,
+        "attendance_data": attendance_data,
+        "user": user
+    })
+
+# --- Courses CRUD ---
+
+@app.get("/cursos", response_class=HTMLResponse)
+async def list_courses(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    courses = db.scalars(select(Course).order_by(Course.name)).all()
+    return templates.TemplateResponse("courses.html", {
+        "request": request,
+        "courses": courses,
+        "user": user
+    })
+
+@app.post("/cursos")
+async def create_course(
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    course = Course(name=name)
+    db.add(course)
+    db.commit()
+    return RedirectResponse(url="/cursos", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/cursos/{course_id}/update")
+async def update_course(
+    course_id: int,
+    name: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    course = db.get(Course, course_id)
+    if course:
+        course.name = name
+        db.commit()
+    return RedirectResponse(url="/cursos", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/cursos/{course_id}/delete")
+async def delete_course(
+    course_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    course = db.get(Course, course_id)
+    if course:
+        db.delete(course)
+        db.commit()
+    return RedirectResponse(url="/cursos", status_code=status.HTTP_303_SEE_OTHER)
 
 from typing import List
 
@@ -194,7 +288,7 @@ async def import_csv(
         reader = csv.DictReader(stream, delimiter=';')
 
     added = 0
-    skipped = 0
+    ignored_list = []
     
     for row in reader:
         row = {k.strip().lower(): v for k, v in row.items() if k}
@@ -208,12 +302,9 @@ async def import_csv(
         observations = row.get('observações') or row.get('observations')
         
         if not name or not email:
-            skipped += 1
-            continue
-            
-        existing = db.scalars(select(Student).where(Student.email == email)).first()
-        if existing:
-            skipped += 1
+            reason = "Nome ou Email ausentes"
+            print(f"[CSV IMPORT] IGNORADO: {name or 'S/ Nome'} | Motivo: {reason}")
+            ignored_list.append(f"{name or 'S/ Nome'} ({reason})")
             continue
             
         student = Student(
@@ -231,21 +322,69 @@ async def import_csv(
         
         turmas_str = row.get('turmas') or row.get('classes')
         if turmas_str:
-            turma_names = [t.strip() for t in turmas_str.split(',')]
-            for t_name in turma_names:
-                # Basic lookup by course name - might need more specific matching for Turmas
-                turma = db.scalars(select(Turma).join(Turma.course).where(Course.name.ilike(t_name))).first()
+            # Handle comma or semicolon separated lists
+            separators = [',', ';']
+            current_turmas = [turmas_str]
+            for sep in separators:
+                new_list = []
+                for t in current_turmas:
+                    new_list.extend([item.strip() for item in t.split(sep)])
+                current_turmas = new_list
+
+            for t_input in current_turmas:
+                if not t_input: continue
+                
+                turma = None
+                # Try to parse "Course Name (YYYY-MM-DD)" or similar
+                if "(" in t_input and t_input.endswith(")"):
+                    try:
+                        course_part = t_input[:t_input.find("(")].strip()
+                        date_part = t_input[t_input.find("(")+1 : -1].strip()
+                        
+                        # Match by course name and start_date
+                        search_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+                        turma = db.scalars(
+                            select(Turma).join(Turma.course)
+                            .where(Course.name.ilike(course_part), Turma.start_date == search_date)
+                        ).first()
+                    except Exception:
+                        turma = None # Fallback to name-only match
+                
+                # Fallback: Match just by course name (picks the most recent/active one)
+                if not turma:
+                    clean_name = t_input.split('(')[0].strip() if '(' in t_input else t_input.strip()
+                    turma = db.scalars(
+                        select(Turma).join(Turma.course)
+                        .where(Course.name.ilike(clean_name))
+                        .order_by(Turma.start_date.desc())
+                    ).first()
+
                 if turma:
-                    enrollment = Enrollment(student_id=student.id, class_id=turma.id)
-                    db.add(enrollment)
+                    # Check if already enrolled to avoid duplicates in the same import
+                    existing_enrollment = db.scalars(
+                        select(Enrollment).where(Enrollment.student_id == student.id, Enrollment.class_id == turma.id)
+                    ).first()
+                    if not existing_enrollment:
+                        enrollment = Enrollment(student_id=student.id, class_id=turma.id)
+                        db.add(enrollment)
+                else:
+                    print(f"[CSV IMPORT] AVISO: Turma/Curso não encontrado: '{t_input}' para o aluno {name}")
                     
         added += 1
     
     db.commit()
     
+    message = f"Importação concluída: {added} adicionados."
+    if ignored_list:
+        message += f" {len(ignored_list)} ignorados: {', '.join(ignored_list[:5])}"
+        if len(ignored_list) > 5:
+            message += " ..."
+
     return {
         "success": True, 
-        "message": f"Importação concluída: {added} adicionados, {skipped} ignorados."
+        "message": message,
+        "added": added,
+        "ignored": ignored_list
     }
 
 @app.post("/register")
@@ -419,6 +558,23 @@ async def create_turma(
     db.commit()
     return RedirectResponse(url="/turmas", status_code=status.HTTP_303_SEE_OTHER)
 
+@app.post("/turmas/{turma_id}/update")
+async def update_turma(
+    turma_id: int,
+    course_id: int = Form(...),
+    start_date: str = Form(...),
+    end_date: str = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turma = db.get(Turma, turma_id)
+    if turma:
+        turma.course_id = course_id
+        turma.start_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+        turma.end_date = datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+        db.commit()
+    return RedirectResponse(url="/turmas", status_code=status.HTTP_303_SEE_OTHER)
+
 @app.get("/turmas/{turma_id}", response_class=HTMLResponse)
 async def turma_details(
     turma_id: int,
@@ -527,4 +683,201 @@ async def submit_attendance(
     
     db.commit()
     return RedirectResponse(url=f"/turmas/{roll_call.classe_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+from pydantic import BaseModel
+
+class BulkAssignRequest(BaseModel):
+    student_ids: List[int]
+    turma_id: int
+
+class BulkDeleteRequest(BaseModel):
+    student_ids: List[int]
+
+@app.post("/alunos/bulk/assign")
+async def bulk_assign_students(
+    request: BulkAssignRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turma = db.get(Turma, request.turma_id)
+    if not turma:
+        return {"success": False, "message": "Turma não encontrada"}
+    
+    added = 0
+    for s_id in request.student_ids:
+        # Check if already enrolled
+        existing = db.scalars(
+            select(Enrollment).where(Enrollment.student_id == s_id, Enrollment.class_id == request.turma_id)
+        ).first()
+        
+        if not existing:
+            enrollment = Enrollment(student_id=s_id, class_id=request.turma_id)
+            db.add(enrollment)
+            added += 1
+            
+    db.commit()
+    return {"success": True, "message": f"{added} alunos matriculados com sucesso na turma {turma.course.name}."}
+
+@app.post("/alunos/bulk/delete")
+async def bulk_delete_students(
+    request: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    count = 0
+    for s_id in request.student_ids:
+        student = db.get(Student, s_id)
+        if student:
+            db.delete(student)
+            count += 1
+            
+    db.commit()
+    return {"success": True, "message": f"{count} alunos removidos com sucesso."}
+
+@app.post("/reports/bulk/frequency")
+async def report_bulk_frequency(
+    student_ids: List[int] = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    all_students_data = []
+    
+    for s_id in student_ids:
+        student = db.get(Student, s_id)
+        if not student:
+            continue
+            
+        attendance_data = []
+        for enrollment in student.enrollments:
+            total = len(enrollment.attendances)
+            present = sum(1 for a in enrollment.attendances if a.presence)
+            absent = total - present
+            rate = (present / total * 100) if total > 0 else 100
+            attendance_data.append({
+                "turma": enrollment.turma,
+                "attendances": sorted(enrollment.attendances, key=lambda x: x.roll_call.week_start, reverse=True),
+                "total": total,
+                "present": present,
+                "absent": absent,
+                "rate": rate
+            })
+            
+        all_students_data.append({
+            "student": student,
+            "attendance_data": attendance_data
+        })
+
+    if not all_students_data:
+        raise HTTPException(status_code=400, detail="Nenhum aluno encontrado")
+
+    pdf_content = render_pdf("pdf/bulk_frequency.html", {
+        "all_students_data": all_students_data,
+        "now": datetime.now()
+    })
+    
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": "attachment; filename=frequencias_em_massa.pdf"
+    })
+
+def render_pdf(template_path: str, context: dict):
+    template = templates.get_template(template_path)
+    html = template.render(context)
+    result = io.BytesIO()
+    pisa.pisaDocument(io.BytesIO(html.encode("utf-8")), result)
+    return result.getvalue()
+
+# --- PDF Reports ---
+
+@app.post("/reports/roll_calls")
+async def report_roll_calls(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    form_data = await request.form()
+    roll_call_ids = [int(v) for k, v in form_data.items() if k.startswith('roll_call_ids')]
+    
+    if not roll_call_ids:
+        roll_call_ids = [int(v) for v in form_data.getlist('roll_call_ids')]
+
+    if not roll_call_ids:
+        raise HTTPException(status_code=400, detail="Nenhuma chamada selecionada")
+    
+    roll_calls = db.scalars(
+        select(RollCall).where(RollCall.id.in_(roll_call_ids)).order_by(RollCall.week_start)
+    ).all()
+    
+    if not roll_calls:
+        raise HTTPException(status_code=404, detail="Chamadas não encontradas")
+    
+    turma = roll_calls[0].turma
+    
+    pdf_content = render_pdf("pdf/roll_call_journal.html", {
+        "turma": turma,
+        "roll_calls": roll_calls,
+        "now": datetime.now()
+    })
+    
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename=diario_classe_{turma.id}.pdf"
+    })
+
+@app.get("/reports/student/{student_id}/frequency")
+async def report_student_frequency(
+    student_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    student = db.get(Student, student_id)
+    if not student:
+        raise HTTPException(status_code=404, detail="Aluno não encontrado")
+    
+    attendance_data = []
+    for enrollment in student.enrollments:
+        total = len(enrollment.attendances)
+        present = sum(1 for a in enrollment.attendances if a.presence)
+        absent = total - present
+        rate = (present / total * 100) if total > 0 else 100
+        attendance_data.append({
+            "turma": enrollment.turma,
+            "attendances": sorted(enrollment.attendances, key=lambda x: x.roll_call.week_start, reverse=True),
+            "total": total,
+            "present": present,
+            "absent": absent,
+            "rate": rate
+        })
+
+    pdf_content = render_pdf("pdf/student_frequency.html", {
+        "student": student,
+        "attendance_data": attendance_data,
+        "now": datetime.now()
+    })
+    
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename=frequencia_{student.id}.pdf"
+    })
+
+@app.get("/reports/blank_enrollment")
+async def report_blank_enrollment(
+    user: User = Depends(login_required)
+):
+    pdf_content = render_pdf("pdf/blank_enrollment.html", {"now": datetime.now()})
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": "attachment; filename=ficha_matricula_vazia.pdf"
+    })
+
+@app.get("/reports/blank_roll_call")
+async def report_blank_roll_call(
+    turma_id: int = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turma = db.get(Turma, turma_id) if turma_id else None
+    pdf_content = render_pdf("pdf/blank_roll_call.html", {
+        "turma": turma,
+        "now": datetime.now()
+    })
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": "attachment; filename=lista_chamada_vazia.pdf"
+    })
 

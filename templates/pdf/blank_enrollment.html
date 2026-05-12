@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4 portrait;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 11pt;
+            color: #000;
+            line-height: 1.6;
+        }
+        .header { text-align: center; border-bottom: 2px solid #000; margin-bottom: 20pt; padding-bottom: 10pt; }
+        .logo { font-size: 24pt; font-weight: bold; }
+        h1 { font-size: 16pt; margin: 10pt 0; text-transform: uppercase; }
+        .section-title { background-color: #eee; padding: 5pt; font-weight: bold; margin: 15pt 0 10pt 0; border: 1px solid #ccc; }
+        .field-row { margin-bottom: 12pt; overflow: hidden; }
+        .field { display: inline-block; border-bottom: 1px solid #000; height: 18pt; }
+        .label { font-weight: bold; font-size: 10pt; }
+        .terms { font-size: 9pt; text-align: justify; margin-top: 30pt; border: 1px solid #ddd; padding: 10pt; }
+        .signatures { margin-top: 60pt; text-align: center; }
+        .sig-box { display: inline-block; width: 45%; border-top: 1px solid #000; padding-top: 5pt; margin: 0 2%; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <div class="logo">NOVA ERA</div>
+        <h1>Ficha de Matrícula</h1>
+    </div>
+
+    <div class="section-title">DADOS DO ALUNO</div>
+    <div class="field-row">
+        <span class="label">NOME COMPLETO:</span> <span class="field" style="width: 350pt;"></span>
+    </div>
+    <div class="field-row">
+        <span class="label">DATA DE NASCIMENTO:</span> <span class="field" style="width: 100pt;"></span>
+        <span class="label" style="margin-left: 20pt;">CPF:</span> <span class="field" style="width: 150pt;"></span>
+    </div>
+    <div class="field-row">
+        <span class="label">E-MAIL:</span> <span class="field" style="width: 250pt;"></span>
+        <span class="label" style="margin-left: 10pt;">TELEFONE:</span> <span class="field" style="width: 100pt;"></span>
+    </div>
+    <div class="field-row">
+        <span class="label">ENDEREÇO:</span> <span class="field" style="width: 400pt;"></span>
+    </div>
+    <div class="field-row">
+        <span class="label">TEL. EMERGÊNCIA:</span> <span class="field" style="width: 150pt;"></span>
+        <span class="label" style="margin-left: 20pt;">FALAR COM:</span> <span class="field" style="width: 150pt;"></span>
+    </div>
+
+    <div class="section-title">DADOS DO CURSO</div>
+    <div class="field-row">
+        <span class="label">CURSO:</span> <span class="field" style="width: 250pt;"></span>
+        <span class="label" style="margin-left: 20pt;">TURMA:</span> <span class="field" style="width: 100pt;"></span>
+    </div>
+    <div class="field-row">
+        <span class="label">VALOR DA MENSALIDADE:</span> <span class="field" style="width: 100pt;"></span>
+        <span class="label" style="margin-left: 20pt;">DIA DE VENCIMENTO:</span> <span class="field" style="width: 80pt;"></span>
+    </div>
+
+    <div class="section-title">OBSERVAÇÕES MÉDICAS / GERAIS</div>
+    <div style="border: 1px solid #ccc; height: 60pt; width: 100%;"></div>
+
+    <div class="terms">
+        Declaro estar ciente das normas da instituição e comprometo-me a cumprir com os pagamentos acordados e as normas de frequência e comportamento estabelecidas. Autorizo o uso da minha imagem para fins de divulgação acadêmica da instituição.
+    </div>
+
+    <div class="signatures">
+        <div class="sig-box">Assinatura do Aluno (ou Responsável)</div>
+        <div class="sig-box">Assinatura Nova Era</div>
+        <p style="margin-top: 20pt; font-size: 10pt;">Data: ____/____/{{ now.year }}</p>
+    </div>
+</body>
+</html>

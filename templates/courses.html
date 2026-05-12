@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex justify-between items-center">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-900">Cursos</h1>
+            <p class="text-slate-500">Gerencie os cursos oferecidos pela instituição</p>
+        </div>
+        <button onclick="document.getElementById('modal-course').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" />
+            </svg>
+            Novo Curso
+        </button>
+    </div>
+
+    <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+        <table class="min-w-full divide-y divide-slate-200">
+            <thead class="bg-slate-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nome do Curso</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Turmas Ativas</th>
+                    <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Ações</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200 bg-white">
+                {% for course in courses %}
+                <tr class="hover:bg-slate-50 transition-colors">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="font-medium text-slate-900">{{ course.name }}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-600">
+                        {{ course.classes|length }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="openEditCourseModal({{ course.id }}, '{{ course.name }}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Editar</button>
+                        <form action="/cursos/{{ course.id }}/delete" method="POST" class="inline" onsubmit="return confirm('Deseja excluir este curso? Todas as turmas relacionadas também serão afetadas.')">
+                            <button type="submit" class="text-rose-600 hover:text-rose-900">Excluir</button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+                {% if not courses %}
+                <tr>
+                    <td colspan="3" class="px-6 py-10 text-center text-slate-500">
+                        Nenhum curso cadastrado.
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Modal Novo Curso -->
+<div id="modal-course" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-900" id="modal-title">Novo Curso</h3>
+            <button onclick="closeCourseModal()" class="text-slate-400 hover:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form id="courseForm" action="/cursos" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Nome do Curso</label>
+                <input type="text" name="name" id="course-name" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            </div>
+            <div class="pt-4 flex gap-3">
+                <button type="button" onclick="closeCourseModal()" class="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                    Salvar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    function openEditCourseModal(id, name) {
+        document.getElementById('modal-title').innerText = 'Editar Curso';
+        document.getElementById('courseForm').action = '/cursos/' + id + '/update';
+        document.getElementById('course-name').value = name;
+        document.getElementById('modal-course').classList.remove('hidden');
+    }
+
+    function closeCourseModal() {
+        document.getElementById('modal-course').classList.add('hidden');
+        document.getElementById('modal-title').innerText = 'Novo Curso';
+        document.getElementById('courseForm').action = '/cursos';
+        document.getElementById('course-name').value = '';
+    }
+</script>
+{% endblock %}

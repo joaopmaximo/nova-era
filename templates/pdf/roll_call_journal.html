@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        @page {
+            size: A4 landscape;
+            margin: 1cm;
+        }
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 10pt;
+            color: #333;
+        }
+        h1 { text-align: center; font-size: 16pt; margin-bottom: 5pt; }
+        h2 { text-align: center; font-size: 12pt; margin-top: 0; color: #666; }
+        .header-info { margin-bottom: 20pt; border-bottom: 1px solid #ccc; padding-bottom: 10pt; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10pt; }
+        th, td { border: 1px solid #999; padding: 4pt; text-align: left; }
+        th { background-color: #f0f0f0; font-weight: bold; font-size: 8pt; }
+        .presence-cell { text-align: center; width: 30pt; font-weight: bold; }
+        .footer { position: fixed; bottom: 0; width: 100%; text-align: right; font-size: 8pt; color: #999; }
+        .present { color: green; }
+        .absent { color: red; }
+    </style>
+</head>
+<body>
+    <div class="footer">Gerado em {{ now.strftime('%d/%m/%Y %H:%M') }}</div>
+    
+    <h1>Diário de Classe - Nova Era</h1>
+    <h2>Curso: {{ turma.course.name }} | Período: {{ turma.start_date.strftime('%d/%m/%Y') }} a {{ turma.end_date.strftime('%d/%m/%Y') if turma.end_date else 'Indeterminado' }}</h2>
+
+    <table>
+        <thead>
+            <tr>
+                <th style="width: 150pt;">Aluno</th>
+                {% for rc in roll_calls %}
+                <th class="presence-cell">Semana {{ rc.week_start.strftime('%d/%m') }}</th>
+                {% endfor %}
+            </tr>
+        </thead>
+        <tbody>
+            {% for enrollment in turma.enrollments|sort(attribute='student.name') %}
+            <tr>
+                <td>{{ enrollment.student.name }}</td>
+                {% for rc in roll_calls %}
+                    {% set found = False %}
+                    <td class="presence-cell">
+                    {% for att in enrollment.attendances %}
+                        {% if att.roll_call_id == rc.id %}
+                            {% if att.presence %}<span class="present">P</span>{% else %}<span class="absent">F</span>{% endif %}
+                            {% set found = True %}
+                        {% endif %}
+                    {% endfor %}
+                    {% if not found %}-{% endif %}
+                    </td>
+                {% endfor %}
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</body>
+</html>

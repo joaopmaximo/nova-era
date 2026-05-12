@@ -42,7 +42,8 @@
                         {{ turma.enrollments|length }} alunos
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="/turmas/{{ turma.id }}" class="text-indigo-600 hover:text-indigo-900 mr-4">Ver Detalhes</a>
+                        <button onclick="openEditTurmaModal({{ turma.id }}, {{ turma.course_id }}, '{{ turma.start_date }}', '{{ turma.end_date if turma.end_date else '' }}')" class="text-indigo-600 hover:text-indigo-900 mr-4">Editar</button>
+                        <a href="/turmas/{{ turma.id }}" class="text-slate-600 hover:text-slate-900">Ver Detalhes</a>
                     </td>
                 </tr>
                 {% endfor %}
@@ -58,21 +59,21 @@
     </div>
 </div>
 
-<!-- Modal Nova Turma -->
+<!-- Modal Nova/Editar Turma -->
 <div id="modal-turma" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
     <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
         <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
-            <h3 class="text-lg font-bold text-slate-900">Nova Turma</h3>
-            <button onclick="document.getElementById('modal-turma').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+            <h3 class="text-lg font-bold text-slate-900" id="modal-title">Nova Turma</h3>
+            <button onclick="closeTurmaModal()" class="text-slate-400 hover:text-slate-600">
                 <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                 </svg>
             </button>
         </div>
-        <form action="/turmas" method="POST" class="p-6 space-y-4">
+        <form id="turmaForm" action="/turmas" method="POST" class="p-6 space-y-4">
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Curso</label>
-                <select name="course_id" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <select name="course_id" id="turma-course" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                     <option value="">Selecione um curso</option>
                     {% for course in courses %}
                     <option value="{{ course.id }}">{{ course.name }}</option>
@@ -81,21 +82,41 @@
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Data de Início</label>
-                <input type="date" name="start_date" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <input type="date" name="start_date" id="turma-start" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div>
                 <label class="block text-sm font-medium text-slate-700 mb-1">Data de Término (Opcional)</label>
-                <input type="date" name="end_date" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <input type="date" name="end_date" id="turma-end" class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             </div>
             <div class="pt-4 flex gap-3">
-                <button type="button" onclick="document.getElementById('modal-turma').classList.add('hidden')" class="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                <button type="button" onclick="closeTurmaModal()" class="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
                     Cancelar
                 </button>
                 <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
-                    Criar Turma
+                    Salvar
                 </button>
             </div>
         </form>
     </div>
 </div>
+
+<script>
+    function openEditTurmaModal(id, courseId, startDate, endDate) {
+        document.getElementById('modal-title').innerText = 'Editar Turma';
+        document.getElementById('turmaForm').action = '/turmas/' + id + '/update';
+        document.getElementById('turma-course').value = courseId;
+        document.getElementById('turma-start').value = startDate;
+        document.getElementById('turma-end').value = endDate;
+        document.getElementById('modal-turma').classList.remove('hidden');
+    }
+
+    function closeTurmaModal() {
+        document.getElementById('modal-turma').classList.add('hidden');
+        document.getElementById('modal-title').innerText = 'Nova Turma';
+        document.getElementById('turmaForm').action = '/turmas';
+        document.getElementById('turma-course').value = '';
+        document.getElementById('turma-start').value = '';
+        document.getElementById('turma-end').value = '';
+    }
+</script>
 {% endblock %}
