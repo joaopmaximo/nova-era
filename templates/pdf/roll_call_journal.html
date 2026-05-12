@@ -15,10 +15,11 @@
         h1 { text-align: center; font-size: 16pt; margin-bottom: 5pt; }
         h2 { text-align: center; font-size: 12pt; margin-top: 0; color: #666; }
         .header-info { margin-bottom: 20pt; border-bottom: 1px solid #ccc; padding-bottom: 10pt; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10pt; }
-        th, td { border: 1px solid #999; padding: 4pt; text-align: left; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10pt; table-layout: fixed; }
+        th, td { border: 1px solid #999; padding: 4pt; text-align: left; overflow: hidden; }
         th { background-color: #f0f0f0; font-weight: bold; font-size: 8pt; }
-        .presence-cell { text-align: center; width: 30pt; font-weight: bold; }
+        .presence-cell { text-align: center; font-weight: bold; width: 45pt; }
+        .name-cell { width: 150pt; }
         .footer { position: fixed; bottom: 0; width: 100%; text-align: right; font-size: 8pt; color: #999; }
         .present { color: green; }
         .absent { color: red; }
@@ -28,36 +29,54 @@
     <div class="footer">Gerado em {{ now.strftime('%d/%m/%Y %H:%M') }}</div>
     
     <h1>Diário de Classe - Nova Era</h1>
-    <h2>Curso: {{ turma.course.name }} | Período: {{ turma.start_date.strftime('%d/%m/%Y') }} a {{ turma.end_date.strftime('%d/%m/%Y') if turma.end_date else 'Indeterminado' }}</h2>
+    <h2 style="margin-bottom: 20pt;">Curso: {{ turma.course.name }} | Período: {{ turma.start_date.strftime('%d/%m/%Y') }} a {{ turma.end_date.strftime('%d/%m/%Y') if turma.end_date else 'Indeterminado' }}</h2>
 
+    {% for batch in roll_calls|batch(10) %}
+    {% if not loop.first %}
+    <div style="pdf-next-page: shrink; margin-top: 30pt; border-top: 1px dashed #ccc; padding-top: 20pt;"></div>
+    <h2 style="text-align: left; font-size: 10pt;">Continuação - Chamadas (Parte {{ loop.index }})</h2>
+    {% endif %}
+    
     <table>
         <thead>
             <tr>
-                <th style="width: 150pt;">Aluno</th>
-                {% for rc in roll_calls %}
-                <th class="presence-cell">Semana {{ rc.week_start.strftime('%d/%m') }}</th>
+                <th class="name-cell">Aluno</th>
+                {% for rc in batch %}
+                <th class="presence-cell">Sem. {{ rc.week_start.strftime('%d/%m') }}</th>
                 {% endfor %}
+                {# Preencher espaço vazio se o batch tiver menos de 10 itens para manter a largura consistente #}
+                {% if batch|length < 10 %}
+                    {% for _ in range(10 - batch|length) %}
+                    <th style="border: none; background: none;"></th>
+                    {% endfor %}
+                {% endif %}
             </tr>
         </thead>
         <tbody>
             {% for enrollment in turma.enrollments|sort(attribute='student.name') %}
             <tr>
-                <td>{{ enrollment.student.name }}</td>
-                {% for rc in roll_calls %}
-                    {% set found = False %}
+                <td class="name-cell" style="white-space: nowrap; text-overflow: ellipsis;">{{ enrollment.student.name }}</td>
+                {% for rc in batch %}
+                    {% set ns = namespace(found=false) %}
                     <td class="presence-cell">
                     {% for att in enrollment.attendances %}
                         {% if att.roll_call_id == rc.id %}
                             {% if att.presence %}<span class="present">P</span>{% else %}<span class="absent">F</span>{% endif %}
-                            {% set found = True %}
+                            {% set ns.found = true %}
                         {% endif %}
                     {% endfor %}
-                    {% if not found %}-{% endif %}
+                    {% if not ns.found %}-{% endif %}
                     </td>
                 {% endfor %}
+                {% if batch|length < 10 %}
+                    {% for _ in range(10 - batch|length) %}
+                    <td style="border: none;"></td>
+                    {% endfor %}
+                {% endif %}
             </tr>
             {% endfor %}
         </tbody>
     </table>
+    {% endfor %}
 </body>
 </html>

@@ -14,11 +14,16 @@
         .header { margin-bottom: 20pt; border-bottom: 1px solid #000; padding-bottom: 10pt; }
         h1 { font-size: 14pt; margin: 0; }
         .turma-info { font-size: 10pt; color: #666; margin-top: 5pt; }
-        table { width: 100%; border-collapse: collapse; margin-top: 20pt; }
-        th, td { border: 1px solid #000; padding: 6pt; text-align: left; }
-        th { background-color: #f0f0f0; }
-        .check-box { width: 30pt; text-align: center; }
-        .row-num { width: 20pt; text-align: center; color: #999; font-size: 8pt; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20pt; table-layout: fixed; }
+        th, td { border: 1px solid #000; padding: 6pt; text-align: left; overflow: hidden; }
+        th { background-color: #f0f0f0; font-size: 9pt; }
+        
+        /* Larguras fixas para garantir que o xhtml2pdf não esprema as colunas */
+        .col-num { width: 25pt; text-align: center; font-size: 8pt; color: #666; }
+        .col-name { width: 220pt; }
+        .col-check { width: 25pt; text-align: center; }
+        .col-obs { width: 230pt; } /* Total ~525pt, bem dentro dos ~540pt do A4 */
     </style>
 </head>
 <body>
@@ -26,7 +31,7 @@
         <h1>Lista de Presença - Nova Era</h1>
         <div class="turma-info">
             {% if turma %}
-            Curso: {{ turma.course.name }} | Turma ID: {{ turma.id }}
+            Curso: <strong>{{ turma.course.name }}</strong> | Turma ID: {{ turma.id }}
             {% else %}
             Curso: ________________________________ | Turma: _________
             {% endif %}
@@ -38,42 +43,42 @@
     <table>
         <thead>
             <tr>
-                <th class="row-num">№</th>
-                <th>Nome do Aluno</th>
-                <th class="check-box">P</th>
-                <th class="check-box">F</th>
-                <th>Assinatura / Observação</th>
+                <th class="col-num">№</th>
+                <th class="col-name">Nome do Aluno</th>
+                <th class="col-check">P</th>
+                <th class="col-check">F</th>
+                <th class="col-obs">Assinatura / Observação</th>
             </tr>
         </thead>
         <tbody>
             {% if turma and turma.enrollments %}
                 {% for enrollment in turma.enrollments|sort(attribute='student.name') %}
                 <tr>
-                    <td class="row-num">{{ loop.index }}</td>
-                    <td>{{ enrollment.student.name }}</td>
-                    <td class="check-box"></td>
-                    <td class="check-box"></td>
-                    <td></td>
+                    <td class="col-num">{{ loop.index }}</td>
+                    <td class="col-name" style="white-space: nowrap; text-overflow: ellipsis;">{{ enrollment.student.name }}</td>
+                    <td class="col-check"></td>
+                    <td class="col-check"></td>
+                    <td class="col-obs"></td>
                 </tr>
                 {% endfor %}
-                {# Add some empty rows just in case #}
+                {# Linhas vazias extras para preenchimento manual #}
                 {% for i in range(5) %}
                 <tr>
-                    <td class="row-num">{{ loop.index + turma.enrollments|length }}</td>
-                    <td></td>
-                    <td class="check-box"></td>
-                    <td class="check-box"></td>
-                    <td></td>
+                    <td class="col-num">{{ loop.index + turma.enrollments|length }}</td>
+                    <td class="col-name"></td>
+                    <td class="col-check"></td>
+                    <td class="col-check"></td>
+                    <td class="col-obs"></td>
                 </tr>
                 {% endfor %}
             {% else %}
-                {% for i in range(30) %}
+                {% for i in range(25) %}
                 <tr>
-                    <td class="row-num">{{ i + 1 }}</td>
-                    <td></td>
-                    <td class="check-box"></td>
-                    <td class="check-box"></td>
-                    <td></td>
+                    <td class="col-num">{{ i + 1 }}</td>
+                    <td class="col-name"></td>
+                    <td class="col-check"></td>
+                    <td class="col-check"></td>
+                    <td class="col-obs"></td>
                 </tr>
                 {% endfor %}
             {% endif %}

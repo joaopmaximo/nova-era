@@ -2,7 +2,7 @@ import csv
 import io
 import os
 from datetime import timedelta, date, datetime
-from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File, Response
+from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File, Response, Query
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -96,14 +96,19 @@ async def list_alunos(
     size: int = 10,
     search: str = None,
     online: bool = False,
-    turma_id: int = None,
+    turma_id: str = Query(None),
     user: User = Depends(login_required)
 ):
+    # Convert turma_id to int if it's a valid digit string
+    actual_turma_id = None
+    if turma_id and turma_id.isdigit():
+        actual_turma_id = int(turma_id)
+
     query = select(Student)
     
     # Filter by turma
-    if turma_id:
-        query = query.join(Student.enrollments).where(Enrollment.class_id == turma_id)
+    if actual_turma_id:
+        query = query.join(Student.enrollments).where(Enrollment.class_id == actual_turma_id)
         
     if search:
         search_filter = f"%{search}%"
@@ -172,10 +177,15 @@ async def student_profile(
             "rate": rate
         })
 
+    # Get all turmas for the edit modal
+    all_turmas = db.scalars(select(Turma).order_by(Turma.id.desc())).all()
+
     return templates.TemplateResponse("student_profile.html", {
         "request": request,
         "student": student,
         "attendance_data": attendance_data,
+        "turmas": all_turmas,
+        "now": datetime.now(),
         "user": user
     })
 
@@ -795,10 +805,11 @@ async def report_roll_calls(
     user: User = Depends(login_required)
 ):
     form_data = await request.form()
-    roll_call_ids = [int(v) for k, v in form_data.items() if k.startswith('roll_call_ids')]
+    # Fetch all roll_call_ids from the form, handling multiple selections
+    roll_call_ids = form_data.getlist('roll_call_ids')
     
-    if not roll_call_ids:
-        roll_call_ids = [int(v) for v in form_data.getlist('roll_call_ids')]
+    # Convert to integers and filter
+    roll_call_ids = [int(v) for v in roll_call_ids if v]
 
     if not roll_call_ids:
         raise HTTPException(status_code=400, detail="Nenhuma chamada selecionada")
@@ -857,6 +868,30 @@ async def report_student_frequency(
         "Content-Disposition": f"attachment; filename=frequencia_{student.id}.pdf"
     })
 
+@app.get("/reports/turmas/{turma_id}/students")
+async def report_turma_students(
+    turma_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turma = db.get(Turma, turma_id)
+    if not turma:
+        raise HTTPException(status_code=404, detail="Turma não encontrada")
+    
+    students = [e.student for e in turma.enrollments]
+    # Sort students by name
+    students.sort(key=lambda s: s.name)
+
+    pdf_content = render_pdf("pdf/turma_students.html", {
+        "turma": turma,
+        "students": students,
+        "now": datetime.now()
+    })
+    
+    return Response(content=pdf_content, media_type="application/pdf", headers={
+        "Content-Disposition": f"attachment; filename=alunos_turma_{turma_id}.pdf"
+    })
+
 @app.get("/reports/blank_enrollment")
 async def report_blank_enrollment(
     user: User = Depends(login_required)
@@ -868,11 +903,15 @@ async def report_blank_enrollment(
 
 @app.get("/reports/blank_roll_call")
 async def report_blank_roll_call(
-    turma_id: int = None,
+    turma_id: str = Query(None),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
-    turma = db.get(Turma, turma_id) if turma_id else None
+    actual_turma_id = None
+    if turma_id and turma_id.isdigit():
+        actual_turma_id = int(turma_id)
+        
+    turma = db.get(Turma, actual_turma_id) if actual_turma_id else None
     pdf_content = render_pdf("pdf/blank_roll_call.html", {
         "turma": turma,
         "now": datetime.now()
