@@ -18,9 +18,15 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between h-16">
                 <div class="flex items-center">
-                    <a href="/" class="flex items-center">
+                    <a href="/" class="flex items-center mr-8">
                         <img src="/static/images/logo.png" alt="Logo" class="h-10 w-auto">
                     </a>
+                    {% if user %}
+                    <div class="hidden sm:flex sm:space-x-8">
+                        <a href="/" class="text-slate-600 hover:text-slate-900 px-3 py-2 text-sm font-medium">Alunos</a>
+                        <a href="/turmas" class="text-slate-600 hover:text-slate-900 px-3 py-2 text-sm font-medium">Turmas</a>
+                    </div>
+                    {% endif %}
                 </div>
                 {% if user %}
                 <div class="flex items-center gap-4">

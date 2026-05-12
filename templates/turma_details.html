@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="space-y-8">
+    <div class="flex justify-between items-start">
+        <div>
+            <nav class="flex text-sm text-slate-500 mb-2" aria-label="Breadcrumb">
+                <a href="/turmas" class="hover:text-slate-900">Turmas</a>
+                <span class="mx-2">/</span>
+                <span class="text-slate-900 font-medium">{{ turma.course.name }}</span>
+            </nav>
+            <h1 class="text-2xl font-bold text-slate-900">{{ turma.course.name }}</h1>
+            <p class="text-slate-500">Período: {{ turma.start_date.strftime('%d/%m/%Y') }} a {{ turma.end_date.strftime('%d/%m/%Y') if turma.end_date else 'Indeterminado' }}</p>
+        </div>
+        <div class="flex gap-3">
+            <button onclick="document.getElementById('modal-rollcall').classList.remove('hidden')" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-medium transition-colors">
+                Nova Chamada
+            </button>
+            <button onclick="document.getElementById('modal-enroll').classList.remove('hidden')" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg font-medium transition-colors">
+                Matricular Aluno
+            </button>
+        </div>
+    </div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        <!-- Students List -->
+        <div class="lg:col-span-2 space-y-4">
+            <h2 class="text-lg font-bold text-slate-900">Alunos Matriculados</h2>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <table class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Nome</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-slate-500 uppercase tracking-wider">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-200 bg-white">
+                        {% for enrollment in turma.enrollments %}
+                        <tr class="hover:bg-slate-50">
+                            <td class="px-6 py-4 whitespace-nowrap">
+                                <div class="font-medium text-slate-900">{{ enrollment.student.name }}</div>
+                                <div class="text-xs text-slate-500">{{ enrollment.student.email or '' }}</div>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                <form action="/enrollments/{{ enrollment.id }}/delete" method="POST" onsubmit="return confirm('Remover aluno desta turma?')" class="inline">
+                                    <button type="submit" class="text-red-600 hover:text-red-900">Remover</button>
+                                </form>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                        {% if not turma.enrollments %}
+                        <tr>
+                            <td colspan="2" class="px-6 py-8 text-center text-slate-500">Nenhum aluno matriculado.</td>
+                        </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Roll Calls List -->
+        <div class="space-y-4">
+            <h2 class="text-lg font-bold text-slate-900">Chamadas Semanais</h2>
+            <div class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <ul class="divide-y divide-slate-200">
+                    {% for rc in turma.roll_calls|sort(attribute='week_start', reverse=True) %}
+                    <li class="p-4 hover:bg-slate-50 transition-colors">
+                        <a href="/roll_calls/{{ rc.id }}" class="flex justify-between items-center">
+                            <div>
+                                <span class="block font-medium text-slate-900">Semana de {{ rc.week_start.strftime('%d/%m/%Y') }}</span>
+                                <span class="text-xs text-slate-500">a {{ rc.week_end.strftime('%d/%m/%Y') }}</span>
+                            </div>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                            </svg>
+                        </a>
+                    </li>
+                    {% endfor %}
+                    {% if not turma.roll_calls %}
+                    <li class="p-8 text-center text-slate-500 text-sm">Nenhuma chamada realizada.</li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal Enroll Student -->
+<div id="modal-enroll" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-900">Matricular Aluno</h3>
+            <button onclick="document.getElementById('modal-enroll').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form action="/turmas/{{ turma.id }}/enroll" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Selecione o Aluno</label>
+                <select name="student_id" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Selecione...</option>
+                    {% for student in available_students %}
+                    <option value="{{ student.id }}">{{ student.name }}</option>
+                    {% endfor %}
+                </select>
+                <p class="mt-2 text-xs text-slate-500">Somente alunos ainda não matriculados nesta turma são listados.</p>
+            </div>
+            <div class="pt-4 flex gap-3">
+                <button type="button" onclick="document.getElementById('modal-enroll').classList.add('hidden')" class="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                    Confirmar Matrícula
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Nova Chamada -->
+<div id="modal-rollcall" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden">
+        <div class="px-6 py-4 border-b border-slate-200 flex justify-between items-center">
+            <h3 class="text-lg font-bold text-slate-900">Nova Chamada</h3>
+            <button onclick="document.getElementById('modal-rollcall').classList.add('hidden')" class="text-slate-400 hover:text-slate-600">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+            </button>
+        </div>
+        <form action="/turmas/{{ turma.id }}/roll_calls" method="POST" class="p-6 space-y-4">
+            <div>
+                <label class="block text-sm font-medium text-slate-700 mb-1">Início da Semana</label>
+                <input type="date" name="week_start" required class="w-full rounded-lg border-slate-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <p class="mt-2 text-xs text-slate-500">A chamada cobrirá os 7 dias a partir desta data.</p>
+            </div>
+            <div class="pt-4 flex gap-3">
+                <button type="button" onclick="document.getElementById('modal-rollcall').classList.add('hidden')" class="flex-1 px-4 py-2 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors">
+                    Cancelar
+                </button>
+                <button type="submit" class="flex-1 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors font-medium">
+                    Iniciar Chamada
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}

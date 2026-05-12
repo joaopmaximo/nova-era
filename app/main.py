@@ -1,7 +1,7 @@
 import csv
 import io
 import os
-from datetime import timedelta
+from datetime import timedelta, date, datetime
 from fastapi import FastAPI, Form, Request, Depends, HTTPException, status, UploadFile, File
 from fastapi.responses import HTMLResponse, StreamingResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -10,7 +10,7 @@ from sqlalchemy import select, func, or_
 from fastapi.templating import Jinja2Templates
 
 from app.database import engine, get_db, Base
-from app.models import Student, User, Course
+from app.models import Student, User, Course, Turma, Enrollment, RollCall, Attendance
 from app.auth import authenticate_user, create_access_token, login_required, get_password_hash, ACCESS_TOKEN_EXPIRE_MINUTES, get_current_user
 
 app = FastAPI()
@@ -86,14 +86,14 @@ async def root(
     size: int = 10,
     search: str = None,
     online: bool = False,
-    course_id: int = None,
+    turma_id: int = None,
     user: User = Depends(login_required)
 ):
     query = select(Student)
     
-    # Filter by course
-    if course_id:
-        query = query.join(Student.courses).where(Course.id == course_id)
+    # Filter by turma
+    if turma_id:
+        query = query.join(Student.enrollments).where(Enrollment.class_id == turma_id)
         
     if search:
         search_filter = f"%{search}%"
@@ -119,20 +119,20 @@ async def root(
         .limit(size)
     ).unique().all()
     
-    # Get all courses for the tabs and forms
-    all_courses = db.scalars(select(Course).order_by(Course.id)).all()
+    # Get all turmas for the tabs and forms
+    all_turmas = db.scalars(select(Turma).order_by(Turma.id.desc())).all()
     
     return templates.TemplateResponse("students.html", {
         "request": request, 
         "students": students,
-        "courses": all_courses,
+        "turmas": all_turmas,
         "page": page,
         "total_pages": total_pages,
         "total_students": total_students,
         "size": size,
         "search": search or "",
         "online": online,
-        "course_id": course_id,
+        "turma_id": turma_id,
         "user": user
     })
 
@@ -149,10 +149,10 @@ async def export_csv(
     output.write('\ufeff')
     writer = csv.writer(output, delimiter=';')
     
-    writer.writerow(["Nome", "Email", "Telefone", "Tel. Emergência", "CPF", "Endereço", "Cursos", "Observações"])
+    writer.writerow(["Nome", "Email", "Telefone", "Tel. Emergência", "CPF", "Endereço", "Turmas", "Observações"])
     
     for student in students:
-        courses_str = ", ".join([c.name for c in student.courses])
+        turmas_str = ", ".join([f"{e.turma.course.name} ({e.turma.start_date})" for e in student.enrollments])
         writer.writerow([
             student.name,
             student.email,
@@ -160,7 +160,7 @@ async def export_csv(
             student.emergency_phone or "",
             student.document or "",
             student.address or "",
-            courses_str,
+            turmas_str,
             student.observations or ""
         ])
     
@@ -226,16 +226,19 @@ async def import_csv(
             observations=observations,
             is_online=False
         )
-        
-        courses_str = row.get('cursos') or row.get('courses')
-        if courses_str:
-            course_names = [c.strip() for c in courses_str.split(',')]
-            for c_name in course_names:
-                course = db.scalars(select(Course).where(Course.name.ilike(c_name))).first()
-                if course:
-                    student.courses.append(course)
-                    
         db.add(student)
+        db.flush() # Get student.id
+        
+        turmas_str = row.get('turmas') or row.get('classes')
+        if turmas_str:
+            turma_names = [t.strip() for t in turmas_str.split(',')]
+            for t_name in turma_names:
+                # Basic lookup by course name - might need more specific matching for Turmas
+                turma = db.scalars(select(Turma).join(Turma.course).where(Course.name.ilike(t_name))).first()
+                if turma:
+                    enrollment = Enrollment(student_id=student.id, class_id=turma.id)
+                    db.add(enrollment)
+                    
         added += 1
     
     db.commit()
@@ -256,10 +259,13 @@ async def register(
     address: str = Form(None),
     observations: str = Form(None),
     is_online: bool = Form(False),
-    course_ids: List[int] = Form([]),
+    turma_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
+    if not turma_ids:
+        return {"success": False, "message": "O aluno deve ser matriculado em pelo menos uma turma."}
+
     # Normalize CPF
     clean_cpf = "".join(filter(str.isdigit, document)) if document and document.strip() else None
     
@@ -276,14 +282,15 @@ async def register(
         observations=observations,
         is_online=is_online
     )
-    
-    if course_ids:
-        for c_id in course_ids:
-            course = db.get(Course, c_id)
-            if course:
-                student.courses.append(course)
-                
     db.add(student)
+    db.flush()
+    
+    for t_id in turma_ids:
+        turma = db.get(Turma, t_id)
+        if turma:
+            enrollment = Enrollment(student_id=student.id, class_id=turma.id)
+            db.add(enrollment)
+                
     db.commit()
     
     return {"success": True, "message": "Aluno cadastrado com sucesso!"}
@@ -309,7 +316,7 @@ async def get_student(
             "address": student.address,
             "observations": student.observations,
             "is_online": student.is_online,
-            "course_ids": [c.id for c in student.courses]
+            "turma_ids": [e.class_id for e in student.enrollments]
         }
     }
 
@@ -324,7 +331,7 @@ async def update_student(
     address: str = Form(None),
     observations: str = Form(None),
     is_online: bool = Form(False),
-    course_ids: List[int] = Form([]),
+    turma_ids: List[int] = Form([]),
     db: Session = Depends(get_db),
     user: User = Depends(login_required)
 ):
@@ -347,13 +354,19 @@ async def update_student(
     student.observations = observations
     student.is_online = is_online
     
-    # Update courses
-    student.courses = []
-    if course_ids:
-        for c_id in course_ids:
-            course = db.get(Course, c_id)
-            if course:
-                student.courses.append(course)
+    # Update enrollments
+    # In a real scenario, we might want to preserve attendance when updating enrollments
+    # but for simplicity, we'll replace them if requested.
+    if turma_ids:
+        # Simple replace strategy: remove old, add new
+        for e in student.enrollments:
+            db.delete(e)
+        db.flush()
+        for t_id in turma_ids:
+            turma = db.get(Turma, t_id)
+            if turma:
+                enrollment = Enrollment(student_id=student.id, class_id=turma.id)
+                db.add(enrollment)
     
     db.commit()
     return {"success": True, "message": "Aluno atualizado com sucesso!"}
@@ -371,4 +384,147 @@ async def delete_student(
     db.delete(student)
     db.commit()
     return {"success": True, "message": "Aluno removido com sucesso!"}
+
+# --- Turmas (Classes) ---
+
+@app.get("/turmas", response_class=HTMLResponse)
+async def list_turmas(
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turmas = db.scalars(select(Turma).order_by(Turma.id.desc())).all()
+    courses = db.scalars(select(Course).order_by(Course.name)).all()
+    return templates.TemplateResponse("turmas.html", {
+        "request": request,
+        "turmas": turmas,
+        "courses": courses,
+        "user": user
+    })
+
+@app.post("/turmas")
+async def create_turma(
+    course_id: int = Form(...),
+    start_date: str = Form(...),
+    end_date: str = Form(None),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    new_turma = Turma(
+        course_id=course_id,
+        start_date=datetime.strptime(start_date, "%Y-%m-%d").date(),
+        end_date=datetime.strptime(end_date, "%Y-%m-%d").date() if end_date else None
+    )
+    db.add(new_turma)
+    db.commit()
+    return RedirectResponse(url="/turmas", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.get("/turmas/{turma_id}", response_class=HTMLResponse)
+async def turma_details(
+    turma_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    turma = db.get(Turma, turma_id)
+    if not turma:
+        raise HTTPException(status_code=404, detail="Turma não encontrada")
+    
+    # Students not yet in this turma
+    enrolled_student_ids = [e.student_id for e in turma.enrollments]
+    available_students = db.scalars(
+        select(Student).where(Student.id.not_in(enrolled_student_ids) if enrolled_student_ids else True).order_by(Student.name)
+    ).all()
+    
+    return templates.TemplateResponse("turma_details.html", {
+        "request": request,
+        "turma": turma,
+        "available_students": available_students,
+        "user": user
+    })
+
+@app.post("/turmas/{turma_id}/enroll")
+async def enroll_student(
+    turma_id: int,
+    student_id: int = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    enrollment = Enrollment(student_id=student_id, class_id=turma_id)
+    db.add(enrollment)
+    db.commit()
+    return RedirectResponse(url=f"/turmas/{turma_id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.post("/enrollments/{enrollment_id}/delete")
+async def remove_enrollment(
+    enrollment_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    enrollment = db.get(Enrollment, enrollment_id)
+    if enrollment:
+        turma_id = enrollment.class_id
+        db.delete(enrollment)
+        db.commit()
+        return RedirectResponse(url=f"/turmas/{turma_id}", status_code=status.HTTP_303_SEE_OTHER)
+    return RedirectResponse(url="/turmas", status_code=status.HTTP_303_SEE_OTHER)
+
+# --- Chamadas (Roll Calls) ---
+
+@app.post("/turmas/{turma_id}/roll_calls")
+async def create_roll_call(
+    turma_id: int,
+    week_start: str = Form(...),
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    start_date = datetime.strptime(week_start, "%Y-%m-%d").date()
+    end_date = start_date + timedelta(days=6)
+    
+    roll_call = RollCall(classe_id=turma_id, week_start=start_date, week_end=end_date)
+    db.add(roll_call)
+    db.commit()
+    
+    # Pre-populate attendance for all currently enrolled students
+    turma = db.get(Turma, turma_id)
+    for enrollment in turma.enrollments:
+        attendance = Attendance(student_class_id=enrollment.id, roll_call_id=roll_call.id, presence=False)
+        db.add(attendance)
+    db.commit()
+    
+    return RedirectResponse(url=f"/roll_calls/{roll_call.id}", status_code=status.HTTP_303_SEE_OTHER)
+
+@app.get("/roll_calls/{roll_call_id}", response_class=HTMLResponse)
+async def take_attendance(
+    roll_call_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    roll_call = db.get(RollCall, roll_call_id)
+    if not roll_call:
+        raise HTTPException(status_code=404, detail="Chamada não encontrada")
+    
+    return templates.TemplateResponse("roll_call.html", {
+        "request": request,
+        "roll_call": roll_call,
+        "user": user
+    })
+
+@app.post("/roll_calls/{roll_call_id}/submit")
+async def submit_attendance(
+    roll_call_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    user: User = Depends(login_required)
+):
+    form_data = await request.form()
+    roll_call = db.get(RollCall, roll_call_id)
+    
+    for attendance in roll_call.attendances:
+        presence_key = f"presence_{attendance.id}"
+        attendance.presence = True if form_data.get(presence_key) == "on" else False
+    
+    db.commit()
+    return RedirectResponse(url=f"/turmas/{roll_call.classe_id}", status_code=status.HTTP_303_SEE_OTHER)
 
