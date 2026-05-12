@@ -185,7 +185,7 @@ async def student_profile(
         "student": student,
         "attendance_data": attendance_data,
         "turmas": all_turmas,
-        "now": datetime.now(),
+        "now": date.today(),
         "user": user
     })
 
